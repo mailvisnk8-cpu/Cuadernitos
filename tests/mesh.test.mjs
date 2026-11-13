@@ -35,7 +35,7 @@ function testMesh(name,pattern) {
   }
  }
  const bad=[...counts.values()].filter(x=>x!==2);
- assert.equal(bad.length,0,name+': '+bad.length+' non-manifold edges');
+ assert.equal(bad.length,0,name+': '+bad.length+' non-manifold edges '+JSON.stringify([...counts.entries()].filter(([,n])=>n!==2).slice(0,8)));
  assert.equal(top,bottom,'top and bottom triangle count');
  console.log('OK:',name,'triangles',mesh.length/9,'unique edges',counts.size);
 }
