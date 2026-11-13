@@ -70,6 +70,32 @@ export function meshFor(grid, which, z0, z1, earcut) {
     if(!area)throw new Error("Contorno sin área.");
     loops.push({points:reduced,area:area/2});
   }
+  // Dos islas que se tocan solo por una esquina comparten una arista
+  // vertical en 3D (4 caras): Bambu lo marca no-manifold. Separa
+  // mínimamente esas esquinas, preservando las áreas y los detalles.
+  const sharedCorners=new Map();
+  for(const loop of loops){
+    for(let i=0;i<loop.points.length;i++){
+      const p=loop.points[i],key=p[0]+','+p[1];
+      let list=sharedCorners.get(key);
+      if(!list){list=[];sharedCorners.set(key,list);}
+      list.push({loop,i});
+    }
+  }
+  for(const uses of sharedCorners.values()){
+    if(uses.length<2)continue;
+    for(const {loop,i} of uses){
+      const ring=loop.points,p=ring[i];
+      const prev=ring[(i+ring.length-1)%ring.length];
+      const next=ring[(i+1)%ring.length];
+      let vx=prev[0]+next[0]-2*p[0],vy=prev[1]+next[1]-2*p[1];
+      let mag=Math.hypot(vx,vy);
+      if(mag<1e-8)continue;
+      // 0,04 px: en la definición por defecto son ~0,02 mm.
+      const eps=.04;
+      p[0]+=eps*vx/mag;p[1]+=eps*vy/mag;
+    }
+  }
   const exterior=loops.filter(r=>r.area>0);
   const holes=loops.filter(r=>r.area<0);
   if(!exterior.length)throw new Error("No se encontró un contorno exterior.");
