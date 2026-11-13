@@ -63,20 +63,14 @@ footer{padding:16px 0;color:var(--muted);font-size:11px;text-align:center}
 <section class="heading"><div><div class="eyebrow">Diseñá · Probá · Imprimí</div><h1>Tu imagen, una tapa 3D.</h1><p class="lead">Convertí ilustraciones en una tapa A5 con relieves por color, ranuras tipo hongo y archivos preparados para probar en tu Bambu A1 con AMS Lite.</p></div></section>
 <div class="layout">
 <section class="panel">
-<h2>01 / Prepará tu diseño</h2>
+<h2>01 / Subí tu foto y diseñá</h2>
 <div class="section">
-<div class="label"><span>Base maestra obligatoria</span><span>STL original</span></div>
-<label class="upload" for="basefile" style="background:#f3fbf5;border-color:#b5d5b9">
-<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
-<path d="M12 16V4m-5 5 5-5 5 5M4 18v2h16v-2M4 13l8 7 8-7"/>
-</svg><span><strong>Elegir base_rosa(1).stl</strong><small>La cargás una vez y queda guardada en este navegador</small></span>
-</label>
-<input id="basefile" type="file" accept=".stl,model/stl,application/sla,application/octet-stream">
-<div id="base-status" class="base-status" role="status">Comprobando base original guardada…</div>
-<p class="caption">Usamos exactamente los triángulos del STL que compartiste: sin redibujar las ocho ranuras, el contorno ni los detalles inferiores. No se modifica la base para cambiar su grosor.</p>
+<div class="label"><span>Plantilla de tapa</span><span>A5 · 155 × 216 mm</span></div>
+<div id="base-status" class="base-status" role="status">Cargando base original de forma automática…</div>
+<p class="caption">Tu STL original está incorporado en la aplicación: conserva exactamente el contorno y las ocho ranuras tipo hongo. No tenés que subirlo.</p>
 </div>
 <div class="section">
-<div class="label"><span>Imagen de entrada</span><span>PNG / JPG</span></div>
+<div class="label"><span>Imagen de entrada</span><span>PNG / JPG / WebP</span></div>
 <label class="upload" for="file"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 16V3M7 8l5-5 5 5M3 16v3a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-3"/></svg><span><strong>Elegir imagen</strong><small id="filename">Procesamiento local en tu navegador</small></span></label>
 <input id="file" type="file" accept="image/png,image/jpeg,image/webp">
 <div class="actions-inline"><button class="quiet" id="demo" type="button">Usar ilustración de ejemplo</button></div>
@@ -98,7 +92,7 @@ footer{padding:16px 0;color:var(--muted);font-size:11px;text-align:center}
 <button type="button" class="primary" id="generate">Generar archivos STL + 3MF</button>
 <div id="message" role="status" aria-live="polite">Elegí una imagen o usá el ejemplo para comenzar.</div>
 <div class="downloads"><button class="secondary" type="button" id="download3mf" disabled>Descargar 3MF</button><button class="secondary" type="button" id="downloadstls" disabled>Descargar STL (.zip)</button></div>
-<p class="caption">La imagen y la base STL quedan en tu navegador. El STL descargado de la base se conserva byte por byte; las piezas adicionales del 3MF son experimentales y deben verificarse en Bambu Studio.</p>
+<p class="caption">Tu foto se procesa solo en el navegador. La base oficial se incluye automáticamente y se conserva byte por byte en la descarga STL; las piezas adicionales del 3MF son experimentales y deben verificarse en Bambu Studio.</p>
 </section>
 <section class="panel previewpanel">
 <div class="previewbar"><div><h2 style="margin:0 0 4px">02 / Vista de la tapa</h2><div class="caption" style="margin:0">Vista previa de la ilustración recortada por la superficie superior original del STL.</div></div><span class="pill">A5 · discos</span></div>
