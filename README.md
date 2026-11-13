@@ -1,36 +1,42 @@
-# Cuadernitos · Mi taller 3D personal
+# Cuadernitos — generador web experimental de tapas 3D
 
-Web experimental para generar tapas A5 a partir de ilustraciones planas, sin instalar Python ni enviar tus fotos a un servidor.
+**Base maestra obligatoria:** el STL exacto `base_rosa(1).stl` que compartiste, sin volver a generar su perímetro ni sus ranuras tipo hongo.
 
-## Cómo abrir
-Activá **Settings → Pages → Build and deployment → Deploy from a branch → main / (root)** en este repositorio.
+**Abrí la web:** https://mailvisnk8-cpu.github.io/Cuadernitos/
 
-Tu enlace debería ser: https://mailvisnk8-cpu.github.io/Cuadernitos/
+## Primer uso
+1. Abrí la web en el navegador.
+2. En **Base maestra obligatoria**, seleccioná tu archivo **base_rosa(1).stl** (el que ya tenés).
+3. El programa comprobará su SHA-256 y guardará una copia en **IndexedDB**, dentro de ese navegador.
+4. Las próximas veces, desde el mismo navegador y perfil, no hará falta volver a elegirlo. Si borrás los datos del sitio o cambiás de dispositivo, sí hay que cargarlo otra vez.
+5. Elegí la ilustración, la cantidad de colores, las alturas y generá STL + 3MF.
 
-## Funciones iniciales
-- PNG, JPG o WebP.
-- De 2 a 4 colores con selección de color de base.
-- Tapa de 155 × 216 mm; 8 ranuras abiertas de tipo hongo.
-- Garganta de 3,4 mm de ancho hasta 4,8 mm de profundidad; cavidad semicircular de radio 4,8 mm.
-- Relieves independientes y grosor de base configurable.
-- Descarga de STL por color y 3MF multipartes experimental.
+## Garantía de fidelidad de base
+- La geometría **no se calcula a partir de un mapa de píxeles ni de fórmulas paramétricas**.
+- La base se carga de los triángulos del STL original, y al descargar los STL separados se conserva el archivo base **byte por byte**.
+- La base del 3MF se construye a partir de esas mismas coordenadas de triángulos.
+- El STL original está dimensionado aproximadamente en **155 × 216 × 1 mm** y contiene **13.056 triángulos**.
+- Contiene también detalles en la cara inferior: **no se elimina ni se redibuja** ninguna parte de ella.
+- Solamente se crean los relieves superiores para la imagen; esos relieves sí están sujetos a la resolución de conversión elegida.
 
-## Cómo usar
-1. Abrí la web desde Chrome.
-2. Elegí una imagen o usá el dibujo de muestra.
-3. Ajustá cantidad de colores, paleta y alturas.
-4. Generá los archivos y descargá el 3MF.
-5. Abrí en Bambu Studio para **verificar** las partes, asignaciones de AMS, dimensiones y laminado.
-6. Si Bambu no detecta bien los extrusores, descargá y ensamblá los STL por color.
+SHA-256 de la base oficial:
 
-### Limitaciones de esta versión
-- El 3MF es **experimental**. No está validado físicamente ni contra la versión de Bambu Studio instalada.
-- El relieve está rasterizado a 0,5 o 0,25 mm: pueden perderse detalles finos y curvas suaves.
-- El sistema de ranuras se modeló independientemente y necesita prueba de encastre con los discos físicos.
-- No hay visor 3D todavía; la vista previa es en 2D.
-- El sistema no guarda proyectos ni imágenes.
+`d0c98f68e73411b20b275383263ea7c56c8e766b9c61ab5152ef7dc79e65733e`
 
-### Privacidad
-La aplicación procesa las imágenes en el navegador y no las sube ni las guarda en GitHub. El código fuente del repositorio es público.
+Si intentás cargar otro STL, la web **no lo sustituye silenciosamente**: informa que no es la base oficial.
 
-Proyecto personal para Bambu A1 + AMS Lite. No se distribuyen modelos de terceros.
+## Limitaciones actuales
+- Los contornos del **relieve** pueden verse escalonados: falta sustituir el vectorizador de la V1 por una vectorización con contornos suavizados. Esto **no afecta** los contornos y perforaciones de la base maestra.
+- El 3MF multipartes es **experimental**. Las partes y extrusores deben revisarse en Bambu Studio.
+- Las imágenes no se guardan en servidores. El STL base se conserva localmente en el navegador.
+- No es un simulador real de laminado ni un validador de trayectorias de la impresora.
+- El proyecto es para uso personal. No comercial.
+
+## Antes de imprimir
+1. Abrí el 3MF en Bambu Studio.
+2. Comprobá las ocho ranuras, que los relieves estén apoyados sobre la base y la asignación de cuatro colores a los filamentos.
+3. Laminá y revisá las capas.
+4. Hacé una prueba pequeña de encastre antes de imprimir toda la tapa.
+
+## Notas
+Esta app funciona directamente desde GitHub Pages, sin Python, Render ni instalación. El archivo de referencia se guarda en tu computadora mediante IndexedDB; **no** está publicado en el repositorio.
