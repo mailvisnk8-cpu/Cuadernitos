@@ -1,5 +1,5 @@
 'use strict';
-/* Cuadernitos v0.1 — implementación independiente, toda la imagen permanece local. */
+/* Cuadernitos v0.2 — contornos vectorizados para mallas de relieve cerradas. */
 
 /*
  * BASE MAESTRA: ¡NO se rasteriza ni se reconstruye!
@@ -219,33 +219,7 @@ function drawPreview(){
   ctx.globalCompositeOperation='source-over';
  }
 }
-function meshFor(grid,which,z0,z1){
- const {w,h,dx,dy,labels}=grid,tris=[];
- const present=(x,y)=>x>=0&&x<w&&y>=0&&y<h&&labels[y*w+x]===which;
- function tri(a,b,c){tris.push(...a,...b,...c);}
- function quad(a,b,c,d){tri(a,b,c);tri(a,c,d);}
- // Consolidación horizontal en cada fila. Todas las coordenadas son exactas.
- for(let y=0;y<h;y++){
-  let x=0;
-  while(x<w){
-   if(!present(x,y)){x++;continue;}
-   const start=x;while(x<w&&present(x,y))x++;
-   let x0=start*dx,x1=x*dx,y0=y*dy,y1=(y+1)*dy;
-   quad([x0,y0,z1],[x1,y0,z1],[x1,y1,z1],[x0,y1,z1]);
-   quad([x0,y1,z0],[x1,y1,z0],[x1,y0,z0],[x0,y0,z0]);
-  }
- }
- // Perímetro exterior (solo si la celda vecina NO pertenece a esa pieza).
- for(let y=0;y<h;y++)for(let x=0;x<w;x++){
-  if(!present(x,y))continue;
-  const x0=x*dx,x1=(x+1)*dx,y0=y*dy,y1=(y+1)*dy;
-  if(!present(x,y-1))quad([x0,y0,z0],[x1,y0,z0],[x1,y0,z1],[x0,y0,z1]);
-  if(!present(x,y+1))quad([x1,y1,z0],[x0,y1,z0],[x0,y1,z1],[x1,y1,z1]);
-  if(!present(x-1,y))quad([x0,y1,z0],[x0,y0,z0],[x0,y0,z1],[x0,y1,z1]);
-  if(!present(x+1,y))quad([x1,y0,z0],[x1,y1,z0],[x1,y1,z1],[x1,y0,z1]);
- }
- return new Float32Array(tris);
-}
+
 function stl(tris){let n=tris.length/9,ab=new ArrayBuffer(84+n*50),v=new DataView(ab);v.setUint32(80,n,true);let off=84;
  for(let j=0;j<n;j++){
   let k=j*9;
@@ -346,11 +320,12 @@ async function generate(){
  const btn=$('#generate');btn.disabled=true;say('Montando los colores sobre la base STL original…');
  try{
   await new Promise(r=>setTimeout(r,30));
+  const [{meshFor},{default:earcut}]=await Promise.all([import('./mesh.mjs'),import('./vendor/earcut.mjs')]);
   const grid=coloredGrid(Number($('#precision').value)),baseHeight=1,relief=Number($('#relief').value);
   // La base NO se toca. Los triángulos originales se pasan al 3MF y los bytes idénticos al STL.
   const parts=[{name:'base_rosa_STL_original',color:colors[baseIndex],tris:masterBase.tris,stlBytes:masterBase.bytes}];
   for(let k=0;k<colors.length;k++)if(k!==baseIndex){
-   const tris=meshFor(grid,k,baseHeight,baseHeight+relief);
+   const tris=meshFor(grid,k,baseHeight,baseHeight+relief,earcut);
    if(tris.length)parts.push({name:'relieve_color_'+(k+1),color:colors[k],tris});
   }
   if(parts.length<2)throw Error('La imagen quedó de un solo color. Probá otra ilustración o cambiá la paleta.');
