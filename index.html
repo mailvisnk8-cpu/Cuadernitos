@@ -55,7 +55,7 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 footer{padding:16px 0;color:var(--muted);font-size:11px;text-align:center}
 @media(max-width:900px){.layout{grid-template-columns:1fr}.previewpanel{position:static}.coverstage{min-height:470px}h1{font-size:27px}main{padding-top:22px}}
 @media(max-width:480px){.heading{display:block}.layout{gap:16px}.panel{padding:18px}.downloads{grid-template-columns:1fr}.specs{grid-template-columns:1fr 1fr}.coverstage{min-height:430px}#preview{height:420px}}
-</style>
+.base-status{font-size:11px;color:#79695e;margin-top:9px;background:#fff8f0;padding:10px 11px;border-radius:8px}.base-status.good{color:#27653c;background:#edf9f1}.readonly{border:1px solid var(--line);background:#f8f7f5;border-radius:8px;padding:11px 12px;font-size:13px;color:#5a5954}</style>
 </head>
 <body>
 <header><div class="brand"><div class="logo">C</div><div><strong>Cuadernitos</strong><small>Mi taller personal de tapas 3D</small></div></div><div class="right">Web experimental · v0.1</div></header>
@@ -64,6 +64,17 @@ footer{padding:16px 0;color:var(--muted);font-size:11px;text-align:center}
 <div class="layout">
 <section class="panel">
 <h2>01 / Prepará tu diseño</h2>
+<div class="section">
+<div class="label"><span>Base maestra obligatoria</span><span>STL original</span></div>
+<label class="upload" for="basefile" style="background:#f3fbf5;border-color:#b5d5b9">
+<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
+<path d="M12 16V4m-5 5 5-5 5 5M4 18v2h16v-2M4 13l8 7 8-7"/>
+</svg><span><strong>Elegir base_rosa(1).stl</strong><small>La cargás una vez y queda guardada en este navegador</small></span>
+</label>
+<input id="basefile" type="file" accept=".stl,model/stl,application/sla,application/octet-stream">
+<div id="base-status" class="base-status" role="status">Comprobando base original guardada…</div>
+<p class="caption">Usamos exactamente los triángulos del STL que compartiste: sin redibujar las ocho ranuras, el contorno ni los detalles inferiores. No se modifica la base para cambiar su grosor.</p>
+</div>
 <div class="section">
 <div class="label"><span>Imagen de entrada</span><span>PNG / JPG</span></div>
 <label class="upload" for="file"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 16V3M7 8l5-5 5 5M3 16v3a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-3"/></svg><span><strong>Elegir imagen</strong><small id="filename">Procesamiento local en tu navegador</small></span></label>
@@ -81,16 +92,16 @@ footer{padding:16px 0;color:var(--muted);font-size:11px;text-align:center}
 <div class="label"><span>Paleta y color de base</span><span id="countlabel">4 colores</span></div><div class="palette" id="palette"></div>
 </div>
 <div class="section"><div class="fieldrow">
-<div><label class="label" for="baseheight">Base (mm)</label><select id="baseheight"><option value="1" selected>1,0 mm · referencia</option><option value="1.2">1,2 mm</option><option value="1.6">1,6 mm</option><option value="2">2,0 mm</option></select></div>
+<div><span class="label">Espesor de la base</span><div class="readonly">1,0 mm · STL original</div></div>
 <div><label class="label" for="relief">Relieve adicional</label><select id="relief"><option value="0.2">0,2 mm</option><option value="0.4" selected>0,4 mm</option><option value="0.6">0,6 mm</option><option value="0.8">0,8 mm</option></select></div></div>
-<p class="caption">A5 · 155 × 216 mm · 8 ranuras abiertas con garganta de 3,4 mm y cavidad semicircular. Tapa delantera solamente.</p></div>
+<p class="caption">A5 · 155 × 216 mm · base original inalterada, con sus ocho ranuras tipo hongo. Tapa delantera solamente.</p></div>
 <button type="button" class="primary" id="generate">Generar archivos STL + 3MF</button>
 <div id="message" role="status" aria-live="polite">Elegí una imagen o usá el ejemplo para comenzar.</div>
 <div class="downloads"><button class="secondary" type="button" id="download3mf" disabled>Descargar 3MF</button><button class="secondary" type="button" id="downloadstls" disabled>Descargar STL (.zip)</button></div>
-<p class="caption">No se suben imágenes a un servidor. El archivo 3MF incluye partes y extrusores lógicos, pero debe verificarse en Bambu Studio antes de imprimir.</p>
+<p class="caption">La imagen y la base STL quedan en tu navegador. El STL descargado de la base se conserva byte por byte; las piezas adicionales del 3MF son experimentales y deben verificarse en Bambu Studio.</p>
 </section>
 <section class="panel previewpanel">
-<div class="previewbar"><div><h2 style="margin:0 0 4px">02 / Vista de la tapa</h2><div class="caption" style="margin:0">Ilustración simplificada con las ranuras reales marcadas.</div></div><span class="pill">A5 · discos</span></div>
+<div class="previewbar"><div><h2 style="margin:0 0 4px">02 / Vista de la tapa</h2><div class="caption" style="margin:0">Vista previa de la ilustración recortada por la superficie superior original del STL.</div></div><span class="pill">A5 · discos</span></div>
 <div class="coverstage"><canvas id="preview" width="310" height="432" aria-label="Vista previa de la tapa"></canvas><div id="placeholder" class="placeholder" hidden>Elegí una imagen para comenzar</div></div>
 <div class="specs"><div class="spec"><strong>155 × 216</strong><small>Medida en mm</small></div><div class="spec"><strong>8</strong><small>Ranuras tipo hongo</small></div><div class="spec"><strong>4</strong><small>Colores máximos</small></div></div>
 <div class="note"><strong>Antes de imprimir:</strong> abrí el 3MF en Bambu Studio, comprobá las cuatro partes en “Objetos”, asigná los colores a tu AMS Lite si hace falta y revisá la vista laminada. Recomendamos imprimir primero un pequeño test de encastre.</div>
