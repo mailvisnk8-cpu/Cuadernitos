@@ -1,0 +1,248 @@
+'use strict';
+/* Cuadernitos v0.1 — implementación independiente, toda la imagen permanece local. */
+const W=155,H=216,CENTERS=Array.from({length:8},(_,i)=>20.5+i*25);
+const $=s=>document.querySelector(s);
+let source=null, quant=null, output=null, colors=['#F9C8D5','#D51C59','#1D1A1B','#F7C12C'], baseIndex=0;
+const pal=$('#palette'),preview=$('#preview'),pctx=preview.getContext('2d',{willReadFrequently:true});
+const fmt=n=>Number(n).toFixed(4).replace(/0+$/,'').replace(/\.$/,'');
+function say(msg,error=false){let e=$('#message');e.textContent=msg;e.className=error?'error':'';}
+function hex(r,g,b){return '#'+[r,g,b].map(v=>Math.max(0,Math.min(255,Math.round(v))).toString(16).padStart(2,'0')).join('').toUpperCase();}
+function rgb(h){return [parseInt(h.slice(1,3),16),parseInt(h.slice(3,5),16),parseInt(h.slice(5,7),16)]}
+function dist(a,b){const r=a[0]-b[0],g=a[1]-b[1],bl=a[2]-b[2];return (r*.35)**2+(g*.5)**2+(bl*.3)**2;}
+function mushroom(x,y){for(const c of CENTERS){let dy=Math.abs(y-c);if(x<4.8&&dy<=1.7)return true;if(x>=4.8&&((x-4.8)**2+dy**2)<=4.8**2)return true;}return false;}
+function example(){
+ let c=document.createElement('canvas');c.width=420;c.height=580;let ctx=c.getContext('2d');
+ ctx.fillStyle='#F6C5D5';ctx.fillRect(0,0,420,580);
+ ctx.fillStyle='#D72960';ctx.beginPath();ctx.ellipse(220,290,124,148,0,0,Math.PI*2);ctx.fill();
+ ctx.fillStyle='#FFF7EE';ctx.beginPath();ctx.ellipse(225,255,94,116,0,0,Math.PI*2);ctx.fill();
+ ctx.fillStyle='#171717';ctx.beginPath();ctx.arc(193,248,13,0,7);ctx.arc(256,248,13,0,7);ctx.fill();
+ ctx.beginPath();ctx.ellipse(225,304,20,14,0,0,7);ctx.fill();
+ ctx.strokeStyle='#171717';ctx.lineWidth=9;ctx.lineCap='round';ctx.beginPath();ctx.arc(225,306,40,.5,2.55);ctx.stroke();
+ ctx.fillStyle='#D72960';ctx.beginPath();ctx.ellipse(146,165,45,78,-.45,0,7);ctx.ellipse(304,165,45,78,.45,0,7);ctx.fill();
+ ctx.fillStyle='#171717';ctx.beginPath();ctx.ellipse(146,165,22,52,-.45,0,7);ctx.ellipse(304,165,22,52,.45,0,7);ctx.fill();
+ ctx.fillStyle='#F5C23A';ctx.beginPath();ctx.moveTo(270,371);ctx.lineTo(323,336);ctx.lineTo(325,430);ctx.lineTo(280,420);ctx.closePath();ctx.fill();
+ source=c;$('#filename').textContent='Ilustración de ejemplo';reset();
+}
+function loadFile(file){if(!file)return;if(!/^image\/(png|jpeg|webp)$/.test(file.type)){say('Usá PNG, JPG o WebP.',true);return}
+ let img=new Image(),url=URL.createObjectURL(file);
+ img.onload=()=>{URL.revokeObjectURL(url);source=img;$('#filename').textContent=file.name;reset();};
+ img.onerror=()=>{URL.revokeObjectURL(url);say('No pude abrir esa imagen.',true)};img.src=url;
+}
+function raster(width,height){const c=document.createElement('canvas');c.width=width;c.height=height;const ctx=c.getContext('2d',{willReadFrequently:true});
+ ctx.fillStyle='#fff';ctx.fillRect(0,0,width,height);
+ if(source){let iw=source.naturalWidth||source.width,ih=source.naturalHeight||source.height;let sc=Math.min(width/iw,height/ih),dw=iw*sc,dh=ih*sc;
+ ctx.drawImage(source,(width-dw)/2,(height-dh)/2,dw,dh);}
+ return ctx.getImageData(0,0,width,height).data;
+}
+function quantize(n=4){
+ if(!source)return;
+ let w=124,h=173,data=raster(w,h),pts=[],hist=new Map();
+ for(let i=0;i<data.length;i+=4){
+  const a=[data[i],data[i+1],data[i+2]];
+  if(i%12===0)pts.push(a);
+  let key=a.map(v=>Math.round(v/24)*24).join(',');
+  hist.set(key,(hist.get(key)||0)+1);
+ }
+ const freq=Array.from(hist.entries()).sort((a,b)=>b[1]-a[1]);
+ let centers=[];
+ for(let [key] of freq){
+  let p=key.split(',').map(Number);
+  if(centers.every(a=>dist(a,p)>450))centers.push(p);
+  if(centers.length>=n)break;
+ }
+ while(centers.length<n){let p=pts[Math.floor(Math.random()*pts.length)]||[240,240,240];centers.push(p);}
+ for(let it=0;it<12;it++){
+  const sums=Array.from({length:n},()=>[0,0,0,0]);
+  for(let p of pts){let k=nearest(p,centers);sums[k][0]+=p[0];sums[k][1]+=p[1];sums[k][2]+=p[2];sums[k][3]++;}
+  for(let k=0;k<n;k++)if(sums[k][3])centers[k]=sums[k].slice(0,3).map(v=>v/sums[k][3]);
+ }
+ colors=centers.map(a=>hex(...a));
+ const counts=Array(n).fill(0);
+ for(let p of pts)counts[nearest(p,centers)]++;
+ baseIndex=counts.indexOf(Math.max(...counts));
+ renderPalette();drawPreview();say('Imagen procesada. Revisá la paleta y generá tus archivos cuando esté lista.');
+}
+function nearest(p,arr){let k=0,b=Infinity;for(let i=0;i<arr.length;i++){let d=dist(p,arr[i]);if(d<b){b=d;k=i;}}return k;}
+function reset(){output=null;$('#download3mf').disabled=true;$('#downloadstls').disabled=true;quantize(Number($('#numcolors').value))}
+function renderPalette(){pal.innerHTML='';$('#countlabel').textContent=colors.length+' colores';
+ colors.forEach((c,i)=>{
+ let row=document.createElement('div');row.className='pcolor';
+ row.innerHTML='<input type="color" aria-label="Filamento '+(i+1)+'" value="'+c+'"><div><strong>Filamento '+(i+1)+'</strong><small>'+(i===baseIndex?'Base de la tapa':'Color de relieve')+' · '+c+'</small></div><label><input type="radio" name="base" '+(i===baseIndex?'checked':'')+'> Base</label>';
+ let picker=row.querySelector('input[type=color]'),radio=row.querySelector('input[type=radio]');
+ picker.oninput=()=>{colors[i]=picker.value.toUpperCase();row.querySelector('small').textContent=(i===baseIndex?'Base de la tapa':'Color de relieve')+' · '+colors[i];drawPreview();invalidate();};
+ radio.onchange=()=>{baseIndex=i;renderPalette();drawPreview();invalidate();};pal.appendChild(row);
+ });}
+function invalidate(){output=null;$('#download3mf').disabled=true;$('#downloadstls').disabled=true}
+function coloredGrid(step){
+ let w=Math.round(W/step),h=Math.round(H/step),actualX=W/w,actualY=H/h,raw=raster(w,h),
+ centers=quant?quant:colors.map(rgb),labels=new Uint8Array(w*h);
+ // Cuantización utiliza los colores originales, incluso tras editar el color del filamento.
+ for(let y=0;y<h;y++)for(let x=0;x<w;x++){
+  let i=y*w+x,j=i*4;labels[i]=nearest([raw[j],raw[j+1],raw[j+2]],centers);
+  if(mushroom((x+.5)*actualX,(y+.5)*actualY))labels[i]=255;
+ }
+ return {w,h,dx:actualX,dy:actualY,labels};
+}
+function drawPreview(){
+ let c=preview,ctx=pctx,w=c.width,h=c.height;
+ ctx.clearRect(0,0,w,h);ctx.fillStyle='#fff';ctx.fillRect(0,0,w,h);
+ if(!source){$('#placeholder').hidden=false;return}
+ $('#placeholder').hidden=true;let rr=raster(w,h),centers=quant||colors.map(rgb),image=ctx.createImageData(w,h);
+ for(let y=0;y<h;y++)for(let x=0;x<w;x++){
+  let j=(y*w+x)*4;
+  const isHole=mushroom((x+.5)*W/w,(y+.5)*H/h);
+  let c=isHole?[243,240,235]:rgb(colors[nearest([rr[j],rr[j+1],rr[j+2]],centers)]);
+  image.data[j]=c[0];image.data[j+1]=c[1];image.data[j+2]=c[2];image.data[j+3]=255;
+ }
+ ctx.putImageData(image,0,0);ctx.strokeStyle='rgba(0,0,0,.2)';ctx.strokeRect(.5,.5,w-1,h-1);
+}
+function meshFor(grid,which,z0,z1){
+ const {w,h,dx,dy,labels}=grid,tris=[];
+ const present=(x,y)=>x>=0&&x<w&&y>=0&&y<h&&labels[y*w+x]===which;
+ function tri(a,b,c){tris.push(...a,...b,...c);}
+ function quad(a,b,c,d){tri(a,b,c);tri(a,c,d);}
+ // Consolidación horizontal en cada fila. Todas las coordenadas son exactas.
+ for(let y=0;y<h;y++){
+  let x=0;
+  while(x<w){
+   if(!present(x,y)){x++;continue;}
+   const start=x;while(x<w&&present(x,y))x++;
+   let x0=start*dx,x1=x*dx,y0=y*dy,y1=(y+1)*dy;
+   quad([x0,y0,z1],[x1,y0,z1],[x1,y1,z1],[x0,y1,z1]);
+   quad([x0,y1,z0],[x1,y1,z0],[x1,y0,z0],[x0,y0,z0]);
+  }
+ }
+ // Perímetro exterior (solo si la celda vecina NO pertenece a esa pieza).
+ for(let y=0;y<h;y++)for(let x=0;x<w;x++){
+  if(!present(x,y))continue;
+  const x0=x*dx,x1=(x+1)*dx,y0=y*dy,y1=(y+1)*dy;
+  if(!present(x,y-1))quad([x0,y0,z0],[x1,y0,z0],[x1,y0,z1],[x0,y0,z1]);
+  if(!present(x,y+1))quad([x1,y1,z0],[x0,y1,z0],[x0,y1,z1],[x1,y1,z1]);
+  if(!present(x-1,y))quad([x0,y1,z0],[x0,y0,z0],[x0,y0,z1],[x0,y1,z1]);
+  if(!present(x+1,y))quad([x1,y0,z0],[x1,y1,z0],[x1,y1,z1],[x1,y0,z1]);
+ }
+ return new Float32Array(tris);
+}
+function stl(tris){let n=tris.length/9,ab=new ArrayBuffer(84+n*50),v=new DataView(ab);v.setUint32(80,n,true);let off=84;
+ for(let j=0;j<n;j++){
+  let k=j*9;
+  let a=[tris[k],tris[k+1],tris[k+2]],b=[tris[k+3],tris[k+4],tris[k+5]],c=[tris[k+6],tris[k+7],tris[k+8]];
+  let ux=b[0]-a[0],uy=b[1]-a[1],uz=b[2]-a[2],vx=c[0]-a[0],vy=c[1]-a[1],vz=c[2]-a[2];
+  let nx=uy*vz-uz*vy,ny=uz*vx-ux*vz,nz=ux*vy-uy*vx,L=Math.hypot(nx,ny,nz)||1;
+  for(let t of [nx/L,ny/L,nz/L,...a,...b,...c]){v.setFloat32(off,t,true);off+=4;}off+=2;
+ }return new Uint8Array(ab)}
+function crcTable(){let out=new Uint32Array(256);for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;out[n]=c>>>0;}return out}
+const crcTab=crcTable();
+function crc32(buf){let c=0xffffffff;for(let b of buf)c=crcTab[(c^b)&255]^(c>>>8);return (c^0xffffffff)>>>0;}
+function u16(v,n){v.push(n&255,(n>>>8)&255)}
+function u32(v,n){u16(v,n&65535);u16(v,n>>>16)}
+async function deflate(bytes){
+ if(typeof CompressionStream!=='function')return {method:0,data:bytes};
+ try{
+  let stream=new Blob([bytes]).stream().pipeThrough(new CompressionStream('deflate-raw'));
+  let b=new Uint8Array(await new Response(stream).arrayBuffer());
+  return {method:8,data:b};
+ }catch{return {method:0,data:bytes};}
+}
+async function makeZip(files){
+ const enc=new TextEncoder(),out=[],dir=[],records=[];let offset=0;
+ for(let [name,content] of files){
+  let raw=typeof content==='string'?enc.encode(content):content,filename=enc.encode(name);
+  let {method,data}=await deflate(raw),crc=crc32(raw),local=[];
+  u32(local,0x04034b50);u16(local,20);u16(local,0);u16(local,method);u16(local,0);u16(local,0);u32(local,crc);
+  u32(local,data.length);u32(local,raw.length);u16(local,filename.length);u16(local,0);
+  let head=new Uint8Array(local.length+filename.length);head.set(local);head.set(filename,local.length);
+  out.push(head,data);records.push({filename,method,crc,raw:raw.length,len:data.length,offset});
+  offset+=head.length+data.length;
+ }
+ for(let r of records){
+  let entry=[];u32(entry,0x02014b50);u16(entry,20);u16(entry,20);u16(entry,0);u16(entry,r.method);
+  u16(entry,0);u16(entry,0);u32(entry,r.crc);u32(entry,r.len);u32(entry,r.raw);
+  u16(entry,r.filename.length);u16(entry,0);u16(entry,0);u16(entry,0);u16(entry,0);u32(entry,0);u32(entry,r.offset);
+  let b=new Uint8Array(entry.length+r.filename.length);b.set(entry);b.set(r.filename,entry.length);dir.push(b);
+ }
+ const directory=new Blob(dir),tail=[];u32(tail,0x06054b50);u16(tail,0);u16(tail,0);
+ u16(tail,records.length);u16(tail,records.length);u32(tail,directory.size);u32(tail,offset);u16(tail,0);
+ return new Blob([...out,...dir,new Uint8Array(tail)],{type:'application/zip'});
+}
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');}
+function project3mf(parts){
+ const ns='http://schemas.microsoft.com/3dmanufacturing/core/2015/02',pns='http://schemas.microsoft.com/3dmanufacturing/production/2015/06';
+ const objects=parts.map((o,i)=>{
+  const v=[],t=[];for(let j=0;j<o.tris.length;j+=3)v.push('<vertex x="'+fmt(o.tris[j])+'" y="'+fmt(o.tris[j+1])+'" z="'+fmt(o.tris[j+2])+'"/>');
+  for(let j=0;j<o.tris.length/3;j+=3)t.push('<triangle v1="'+j+'" v2="'+(j+1)+'" v3="'+(j+2)+'"/>');
+  return '<object id="'+(i+1)+'" type="model"><mesh><vertices>'+v.join('')+'</vertices><triangles>'+t.join('')+'</triangles></mesh></object>';
+ });
+ const objId=parts.length+1,main='<?xml version="1.0" encoding="UTF-8"?>'+
+  '<model xmlns="'+ns+'" xmlns:p="'+pns+'" requiredextensions="p" unit="millimeter" xml:lang="es-AR"><metadata name="Application">Cuadernitos 0.1</metadata><resources>'+
+  '<object id="'+objId+'" type="model"><components>'+parts.map((_,i)=>'<component objectid="'+(i+1)+'"/>').join('')+'</components></object></resources>'+
+  '<build><item objectid="'+objId+'" transform="1 0 0 0 1 0 0 0 1 50.5 20 0"/></build></model>';
+ // Todos los volúmenes comparten coordenadas; cada pieza es un material lógico.
+ const model='<?xml version="1.0" encoding="UTF-8"?>'+
+  '<model xmlns="'+ns+'" unit="millimeter" xml:lang="es-AR"><resources>'+objects.join('')+'</resources></model>';
+ // Usamos referencia a objeto de subarchivo, según el esquema 3MF de componentes.
+ const fixedMain=main.replace('<model xmlns="'+ns+'" xmlns:p="'+pns+'" requiredextensions="p"', '<model xmlns="'+ns+'" xmlns:p="'+pns+'" requiredextensions="p"')
+ .replaceAll(/<component objectid="(\d+)"\/>/g,(_,id)=>'<component objectid="'+id+'" p:path="/3D/Objects/object_1.model"/>');
+ const cfg='<?xml version="1.0" encoding="UTF-8"?>'+
+ '<config><object id="'+objId+'"><metadata key="name" value="Tapa A5 - Cuadernitos"/>'+
+ '<metadata key="extruder" value="1"/>'+
+ parts.map((part,i)=>'<part id="'+(i+1)+'" subtype="normal_part">'+
+ '<metadata key="name" value="'+esc(part.name)+'"/>'+
+ '<metadata key="matrix" value="1 0 0 0 0 1 0 0 0 0 1 0 0 0 0 1"/>'+
+ '<metadata key="extruder" value="'+(i+1)+'"/><mesh_stat face_count="'+(part.tris.length/9)+'" edges_fixed="0" degenerate_facets="0" facets_removed="0" facets_reversed="0" backwards_edges="0"/></part>').join('')+
+ '</object><plate><metadata key="plater_id" value="1"/><model_instance><metadata key="object_id" value="'+objId+'"/><metadata key="instance_id" value="0"/></model_instance></plate></config>';
+ const filament=parts.map(x=>x.color);
+ const settings=JSON.stringify({filament_colour:filament,filament_type:filament.map(()=>'PLA'),printer_model:'Bambu Lab A1',printer_settings_id:'Bambu Lab A1 0.4 nozzle',print_settings_id:'0.20mm Standard @BBL A1'});
+ const types='<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="model" ContentType="application/vnd.ms-package.3dmanufacturing-3dmodel+xml"/></Types>';
+ const rels='<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Target="/3D/3dmodel.model" Id="r1" Type="http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel"/></Relationships>';
+ const subrels='<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Target="/3D/Objects/object_1.model" Id="r1" Type="http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel"/></Relationships>';
+ return makeZip([
+ ['[Content_Types].xml',types],['_rels/.rels',rels],['3D/3dmodel.model',fixedMain],
+ ['3D/_rels/3dmodel.model.rels',subrels],['3D/Objects/object_1.model',model],
+ ['Metadata/model_settings.config',cfg],['Metadata/project_settings.config',settings]
+ ]).then(b=>new Blob([b],{type:'model/3mf'}));
+}
+function save(blob,name){let a=document.createElement('a'),url=URL.createObjectURL(blob);a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),10000);}
+async function generate(){
+ if(!source){say('Primero elegí una imagen.',true);return}
+ const btn=$('#generate');btn.disabled=true;say('Generando geometría... Puede llevar unos segundos.');
+ try{
+  await new Promise(r=>setTimeout(r,30));
+  const grid=coloredGrid(Number($('#precision').value)),baseHeight=Number($('#baseheight').value),relief=Number($('#relief').value);
+  // La base se crea en la misma retícula que el dibujo, excepto los huecos.
+  const base=new Uint8Array(grid.labels.length);
+  for(let i=0;i<base.length;i++)base[i]=grid.labels[i]===255?255:254;
+  const basegrid={...grid,labels:base};
+  let parts=[{name:'base',color:colors[baseIndex],tris:meshFor(basegrid,254,0,baseHeight)}];
+  for(let k=0;k<colors.length;k++)if(k!==baseIndex){
+   let m=meshFor(grid,k,baseHeight,baseHeight+relief);
+   if(m.length)parts.push({name:'color_'+(k+1),color:colors[k],tris:m});
+  }
+  if(parts.length<2)throw Error('La ilustración quedó de un solo color. Probá otra imagen o cambiá la cantidad de colores.');
+  output={parts,zip3mf:await project3mf(parts),zipStls:null};
+  const n=parts.reduce((s,p)=>s+p.tris.length/9,0);
+  $('#download3mf').disabled=false;$('#downloadstls').disabled=false;
+  say('¡Listo! '+parts.length+' partes · '+n.toLocaleString('es-AR')+' triángulos. Abrí el archivo en Bambu Studio y comprobá ranuras, colores y laminado.');
+ }catch(e){say('No se pudo generar: '+(e.message||e),true);console.error(e)}
+ finally{btn.disabled=false;}
+}
+$('#file').addEventListener('change',e=>loadFile(e.target.files[0]));
+$('#demo').onclick=example;
+$('#numcolors').onchange=()=>{invalidate();quantize(Number($('#numcolors').value));};
+$('#precision').onchange=invalidate;$('#baseheight').onchange=invalidate;$('#relief').onchange=invalidate;
+$('#generate').onclick=generate;
+$('#download3mf').onclick=()=>{if(output)save(output.zip3mf,'Cuadernitos_A5_multicolor.3mf');};
+$('#downloadstls').onclick=async()=>{
+ if(!output)return;
+ say('Comprimiendo los STL...');
+ if(!output.zipStls)output.zipStls=await makeZip(output.parts.map((o,i)=>[String(i+1).padStart(2,'0')+'_'+o.name+'.stl',stl(o.tris)]));
+ save(output.zipStls,'Cuadernitos_A5_partes_STL.zip');say('STL descargados. Importalos juntos como partes de un solo objeto en Bambu Studio.');
+};
+function updateOriginalPalette(){
+ if(!source)return;let vals=raster(124,173),pts=colors.map(()=>[0,0,0,0]);
+ for(let i=0;i<vals.length;i+=4){let k=nearest([vals[i],vals[i+1],vals[i+2]],colors.map(rgb));pts[k][0]+=vals[i];pts[k][1]+=vals[i+1];pts[k][2]+=vals[i+2];pts[k][3]++;}
+ quant=pts.map((v,i)=>v[3]?v.slice(0,3).map(t=>t/v[3]):rgb(colors[i]));
+}
+const prevQuantize=quantize;
+quantize=function(n){prevQuantize(n);quant=colors.map(rgb);drawPreview();};
+example();
