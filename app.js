@@ -1,5 +1,95 @@
 'use strict';
 /* Cuadernitos v0.1 — implementación independiente, toda la imagen permanece local. */
+
+/*
+ * BASE MAESTRA: ¡NO se rasteriza ni se reconstruye!
+ * Se leen los triángulos originales del STL exacto proporcionado por el usuario.
+ * Por privacidad se guarda localmente en IndexedDB después de seleccionarlo UNA vez.
+ * SHA256 base_rosa(1).stl (original): d0c98f68...
+ */
+const ORIGINAL_BASE_SHA='d0c98f68e73411b20b275383263ea7c56c8e766b9c61ab5152ef7dc79e65733e';
+let masterBase=null;
+let topMaskCache=new Map();
+function hexDigest(buf){return crypto.subtle.digest('SHA-256',buf).then(x=>Array.from(new Uint8Array(x),b=>b.toString(16).padStart(2,'0')).join(''));}
+function openLocalDb(){return new Promise((resolve,reject)=>{
+ if(!('indexedDB' in window))return reject(new Error('IndexedDB no disponible'));
+ const r=indexedDB.open('cuadernitos-master-base',1);
+ r.onupgradeneeded=()=>{if(!r.result.objectStoreNames.contains('models'))r.result.createObjectStore('models');};
+ r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);
+});}
+async function saveLocalBase(buffer){
+ const db=await openLocalDb();
+ return new Promise((resolve,reject)=>{
+ const tx=db.transaction('models','readwrite');
+ tx.objectStore('models').put(buffer,'base_rosa_original');
+ tx.oncomplete=()=>{db.close();resolve();};
+ tx.onerror=()=>{db.close();reject(tx.error);};
+ });}
+async function restoreLocalBase(){
+ let db;
+ try{
+ db=await openLocalDb();
+ let raw=await new Promise((resolve,reject)=>{
+  const tx=db.transaction('models','readonly');
+  const req=tx.objectStore('models').get('base_rosa_original');
+  req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);
+ });
+ db.close();db=null;
+ if(raw)await loadMasterBase(raw,false);
+ else setBaseStatus('Todavía falta cargar el STL original una sola vez.',false);
+ }catch(e){if(db)db.close();setBaseStatus('Elegí el STL original para empezar.',false);}
+}
+function decodeOriginalStl(buf){
+ const view=new DataView(buf);
+ if(view.byteLength<84)throw Error('El STL está incompleto.');
+ const n=view.getUint32(80,true);
+ if(n!==13056||84+n*50!==view.byteLength)throw Error('El STL no tiene la cantidad de triángulos de la base oficial.');
+ let xyz=new Float32Array(n*9);
+ for(let i=0;i<n;i++){
+  const offset=84+i*50+12;
+  for(let j=0;j<9;j++)xyz[9*i+j]=view.getFloat32(offset+j*4,true);
+ }
+ return xyz;
+}
+function setBaseStatus(text,ok){
+ const box=$('#base-status');if(box){box.textContent=text;box.className=ok?'base-status good':'base-status';}
+}
+async function loadMasterBase(buffer,save=true){
+ const raw=buffer instanceof ArrayBuffer?buffer:buffer.buffer.slice(buffer.byteOffset,buffer.byteOffset+buffer.byteLength);
+ const sha=await hexDigest(raw);
+ if(sha!==ORIGINAL_BASE_SHA)throw Error('El archivo no coincide con base_rosa(1).stl. Elegí la misma base original que me pasaste.');
+ const tris=decodeOriginalStl(raw);
+ masterBase={bytes:new Uint8Array(raw.slice(0)),tris};
+ topMaskCache.clear();
+ let saved=true;
+ if(save){try{await saveLocalBase(raw)}catch(e){saved=false;console.warn('No se pudo guardar en IndexedDB',e)}}
+ setBaseStatus(saved?'✓ Base original verificada · 13.056 triángulos · guardada en este navegador':'✓ Base verificada · la memoria local está bloqueada, volvé a cargarla al actualizar.',true);
+ invalidate();drawPreview();
+ say('Base exacta cargada. El contorno, las 8 ranuras y los detalles inferiores permanecen intactos.');
+}
+function topSurfaceMask(width,height){
+ if(!masterBase)return null;
+ const key=width+'x'+height;
+ if(topMaskCache.has(key))return topMaskCache.get(key);
+ const c=document.createElement('canvas');c.width=width;c.height=height;
+ const ctx=c.getContext('2d',{willReadFrequently:true});
+ ctx.fillStyle='white';
+ let triangles=masterBase.tris;
+ for(let k=0;k<triangles.length;k+=9){
+  if(Math.abs(triangles[k+2]-1)>1e-5||Math.abs(triangles[k+5]-1)>1e-5||Math.abs(triangles[k+8]-1)>1e-5)continue;
+  ctx.beginPath();
+  ctx.moveTo(triangles[k]*width/W,triangles[k+1]*height/H);
+  ctx.lineTo(triangles[k+3]*width/W,triangles[k+4]*height/H);
+  ctx.lineTo(triangles[k+6]*width/W,triangles[k+7]*height/H);
+  ctx.closePath();ctx.fill();
+ }
+ const rgba=ctx.getImageData(0,0,width,height).data;
+ const inside=new Uint8Array(width*height);
+ for(let i=0;i<inside.length;i++)inside[i]=rgba[4*i+3]>=230?1:0;
+ const result={canvas:c,inside};
+ topMaskCache.set(key,result);return result;
+}
+
 const W=155,H=216,CENTERS=Array.from({length:8},(_,i)=>20.5+i*25);
 const $=s=>document.querySelector(s);
 let source=null, quant=null, output=null, colors=['#F9C8D5','#D51C59','#1D1A1B','#F7C12C'], baseIndex=0;
@@ -74,27 +164,35 @@ function renderPalette(){pal.innerHTML='';$('#countlabel').textContent=colors.le
  });}
 function invalidate(){output=null;$('#download3mf').disabled=true;$('#downloadstls').disabled=true}
 function coloredGrid(step){
- let w=Math.round(W/step),h=Math.round(H/step),actualX=W/w,actualY=H/h,raw=raster(w,h),
- centers=quant?quant:colors.map(rgb),labels=new Uint8Array(w*h);
- // Cuantización utiliza los colores originales, incluso tras editar el color del filamento.
+ const w=Math.round(W/step),h=Math.round(H/step);
+ const dx=W/w,dy=H/h,raw=raster(w,h),centers=quant||colors.map(rgb);
+ const labels=new Uint8Array(w*h);
+ const mask=topSurfaceMask(w,h);
+ if(!mask)throw Error('Primero tenés que cargar base_rosa(1).stl (solo una vez).');
  for(let y=0;y<h;y++)for(let x=0;x<w;x++){
-  let i=y*w+x,j=i*4;labels[i]=nearest([raw[j],raw[j+1],raw[j+2]],centers);
-  if(mushroom((x+.5)*actualX,(y+.5)*actualY))labels[i]=255;
+  const i=y*w+x,j=i*4;
+  labels[i]=mask.inside[i]?nearest([raw[j],raw[j+1],raw[j+2]],centers):255;
  }
- return {w,h,dx:actualX,dy:actualY,labels};
+ return {w,h,dx,dy,labels};
 }
 function drawPreview(){
- let c=preview,ctx=pctx,w=c.width,h=c.height;
- ctx.clearRect(0,0,w,h);ctx.fillStyle='#fff';ctx.fillRect(0,0,w,h);
- if(!source){$('#placeholder').hidden=false;return}
- $('#placeholder').hidden=true;let rr=raster(w,h),centers=quant||colors.map(rgb),image=ctx.createImageData(w,h);
- for(let y=0;y<h;y++)for(let x=0;x<w;x++){
-  let j=(y*w+x)*4;
-  const isHole=mushroom((x+.5)*W/w,(y+.5)*H/h);
-  let c=isHole?[243,240,235]:rgb(colors[nearest([rr[j],rr[j+1],rr[j+2]],centers)]);
-  image.data[j]=c[0];image.data[j+1]=c[1];image.data[j+2]=c[2];image.data[j+3]=255;
+ const c=preview,ctx=pctx,w=c.width,h=c.height;
+ ctx.clearRect(0,0,w,h);
+ if(!source){$('#placeholder').hidden=false;return;}
+ $('#placeholder').hidden=true;
+ const rr=raster(w,h),centers=quant||colors.map(rgb),image=ctx.createImageData(w,h);
+ for(let i=0;i<w*h;i++){
+  const j=i*4,shade=rgb(colors[nearest([rr[j],rr[j+1],rr[j+2]],centers)]);
+  image.data[j]=shade[0];image.data[j+1]=shade[1];image.data[j+2]=shade[2];image.data[j+3]=255;
  }
- ctx.putImageData(image,0,0);ctx.strokeStyle='rgba(0,0,0,.2)';ctx.strokeRect(.5,.5,w-1,h-1);
+ ctx.putImageData(image,0,0);
+ if(masterBase){
+  // Máscara exacta de la cara superior del STL: las ranuras no se aproximan.
+  const mask=topSurfaceMask(w,h);
+  ctx.globalCompositeOperation='destination-in';
+  ctx.drawImage(mask.canvas,0,0);
+  ctx.globalCompositeOperation='source-over';
+ }
 }
 function meshFor(grid,which,z0,z1){
  const {w,h,dx,dy,labels}=grid,tris=[];
@@ -169,7 +267,7 @@ function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').repl
 function project3mf(parts){
  const ns='http://schemas.microsoft.com/3dmanufacturing/core/2015/02',pns='http://schemas.microsoft.com/3dmanufacturing/production/2015/06';
  const objects=parts.map((o,i)=>{
-  const v=[],t=[];for(let j=0;j<o.tris.length;j+=3)v.push('<vertex x="'+fmt(o.tris[j])+'" y="'+fmt(o.tris[j+1])+'" z="'+fmt(o.tris[j+2])+'"/>');
+  const v=[],t=[];for(let j=0;j<o.tris.length;j+=3)v.push('<vertex x="'+String(o.tris[j])+'" y="'+String(o.tris[j+1])+'" z="'+String(o.tris[j+2])+'"/>');
   for(let j=0;j<o.tris.length/3;j+=3)t.push('<triangle v1="'+j+'" v2="'+(j+1)+'" v3="'+(j+2)+'"/>');
   return '<object id="'+(i+1)+'" type="model"><mesh><vertices>'+v.join('')+'</vertices><triangles>'+t.join('')+'</triangles></mesh></object>';
  });
@@ -204,38 +302,46 @@ function project3mf(parts){
 }
 function save(blob,name){let a=document.createElement('a'),url=URL.createObjectURL(blob);a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),10000);}
 async function generate(){
- if(!source){say('Primero elegí una imagen.',true);return}
- const btn=$('#generate');btn.disabled=true;say('Generando geometría... Puede llevar unos segundos.');
+ if(!masterBase){say('Primero cargá base_rosa(1).stl: se guarda en este navegador y no tendrás que volver a cargarlo.',true);return;}
+ if(!source){say('Primero elegí una imagen.',true);return;}
+ const btn=$('#generate');btn.disabled=true;say('Montando los colores sobre la base STL original…');
  try{
   await new Promise(r=>setTimeout(r,30));
-  const grid=coloredGrid(Number($('#precision').value)),baseHeight=Number($('#baseheight').value),relief=Number($('#relief').value);
-  // La base se crea en la misma retícula que el dibujo, excepto los huecos.
-  const base=new Uint8Array(grid.labels.length);
-  for(let i=0;i<base.length;i++)base[i]=grid.labels[i]===255?255:254;
-  const basegrid={...grid,labels:base};
-  let parts=[{name:'base',color:colors[baseIndex],tris:meshFor(basegrid,254,0,baseHeight)}];
+  const grid=coloredGrid(Number($('#precision').value)),baseHeight=1,relief=Number($('#relief').value);
+  // La base NO se toca. Los triángulos originales se pasan al 3MF y los bytes idénticos al STL.
+  const parts=[{name:'base_rosa_STL_original',color:colors[baseIndex],tris:masterBase.tris,stlBytes:masterBase.bytes}];
   for(let k=0;k<colors.length;k++)if(k!==baseIndex){
-   let m=meshFor(grid,k,baseHeight,baseHeight+relief);
-   if(m.length)parts.push({name:'color_'+(k+1),color:colors[k],tris:m});
+   const tris=meshFor(grid,k,baseHeight,baseHeight+relief);
+   if(tris.length)parts.push({name:'relieve_color_'+(k+1),color:colors[k],tris});
   }
-  if(parts.length<2)throw Error('La ilustración quedó de un solo color. Probá otra imagen o cambiá la cantidad de colores.');
-  output={parts,zip3mf:await project3mf(parts),zipStls:null};
-  const n=parts.reduce((s,p)=>s+p.tris.length/9,0);
+  if(parts.length<2)throw Error('La imagen quedó de un solo color. Probá otra ilustración o cambiá la paleta.');
+  const zip3mf=await project3mf(parts);
+  output={parts,zip3mf,zipStls:null};
   $('#download3mf').disabled=false;$('#downloadstls').disabled=false;
-  say('¡Listo! '+parts.length+' partes · '+n.toLocaleString('es-AR')+' triángulos. Abrí el archivo en Bambu Studio y comprobá ranuras, colores y laminado.');
- }catch(e){say('No se pudo generar: '+(e.message||e),true);console.error(e)}
+  const n=parts.reduce((sum,p)=>sum+p.tris.length/9,0);
+  say('¡Listo! Base STL ORIGINAL intacta + '+(parts.length-1)+' relieves. '+n.toLocaleString('es-AR')+' triángulos. Verificá el archivo en Bambu Studio.');
+ }catch(e){say('No se pudo generar: '+(e.message||e),true);console.error(e);}
  finally{btn.disabled=false;}
 }
+
+$('#basefile').addEventListener('change',async e=>{
+ const f=e.target.files[0];if(!f)return;
+ setBaseStatus('Verificando el STL original…',false);
+ try{await loadMasterBase(await f.arrayBuffer(),true);}
+ catch(error){setBaseStatus('No se pudo cargar esta base.',false);say(error.message,true);}
+ e.target.value='';
+});
+restoreLocalBase();
 $('#file').addEventListener('change',e=>loadFile(e.target.files[0]));
 $('#demo').onclick=example;
 $('#numcolors').onchange=()=>{invalidate();quantize(Number($('#numcolors').value));};
-$('#precision').onchange=invalidate;$('#baseheight').onchange=invalidate;$('#relief').onchange=invalidate;
+$('#precision').onchange=invalidate;$('#relief').onchange=invalidate;
 $('#generate').onclick=generate;
 $('#download3mf').onclick=()=>{if(output)save(output.zip3mf,'Cuadernitos_A5_multicolor.3mf');};
 $('#downloadstls').onclick=async()=>{
  if(!output)return;
  say('Comprimiendo los STL...');
- if(!output.zipStls)output.zipStls=await makeZip(output.parts.map((o,i)=>[String(i+1).padStart(2,'0')+'_'+o.name+'.stl',stl(o.tris)]));
+ if(!output.zipStls)output.zipStls=await makeZip(output.parts.map((o,i)=>[String(i+1).padStart(2,'0')+'_'+o.name+'.stl',(o.stlBytes||stl(o.tris))]));
  save(output.zipStls,'Cuadernitos_A5_partes_STL.zip');say('STL descargados. Importalos juntos como partes de un solo objeto en Bambu Studio.');
 };
 function updateOriginalPalette(){
