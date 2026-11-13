@@ -267,9 +267,23 @@ function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').repl
 function project3mf(parts){
  const ns='http://schemas.microsoft.com/3dmanufacturing/core/2015/02',pns='http://schemas.microsoft.com/3dmanufacturing/production/2015/06';
  const objects=parts.map((o,i)=>{
-  const v=[],t=[];for(let j=0;j<o.tris.length;j+=3)v.push('<vertex x="'+String(o.tris[j])+'" y="'+String(o.tris[j+1])+'" z="'+String(o.tris[j+2])+'"/>');
-  for(let j=0;j<o.tris.length/3;j+=3)t.push('<triangle v1="'+j+'" v2="'+(j+1)+'" v3="'+(j+2)+'"/>');
-  return '<object id="'+(i+1)+'" type="model"><mesh><vertices>'+v.join('')+'</vertices><triangles>'+t.join('')+'</triangles></mesh></object>';
+  // Compartir vértices baja drásticamente el tamaño del 3MF y evita duplicar caras.
+  const vertices=[],triangles=[],indices=new Map(),xyz=o.tris;
+  for(let t=0;t<xyz.length;t+=9){
+   const ids=[];
+   for(let j=0;j<9;j+=3){
+    const x=xyz[t+j],y=xyz[t+j+1],z=xyz[t+j+2];
+    const key=x+'|'+y+'|'+z;
+    let id=indices.get(key);
+    if(id===undefined){
+     id=vertices.length;indices.set(key,id);
+     vertices.push('<vertex x="'+x+'" y="'+y+'" z="'+z+'"/>');
+    }
+    ids.push(id);
+   }
+   triangles.push('<triangle v1="'+ids[0]+'" v2="'+ids[1]+'" v3="'+ids[2]+'"/>');
+  }
+  return '<object id="'+(i+1)+'" type="model"><mesh><vertices>'+vertices.join('')+'</vertices><triangles>'+triangles.join('')+'</triangles></mesh></object>';
  });
  const objId=parts.length+1,main='<?xml version="1.0" encoding="UTF-8"?>'+
   '<model xmlns="'+ns+'" xmlns:p="'+pns+'" requiredextensions="p" unit="millimeter" xml:lang="es-AR"><metadata name="Application">Cuadernitos 0.1</metadata><resources>'+
