@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#f7f5f1">
+<title>Cuadernitos · Taller 3D personal</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%23ea5b65'/%3E%3Ctext x='50' y='70' font-size='67' text-anchor='middle' fill='white'%3EC%3C/text%3E%3C/svg%3E">
+<style>
+:root{--bg:#f7f5f1;--paper:#fff;--ink:#262625;--muted:#77756f;--line:#e7e2da;--accent:#d64f59;--soft:#fff0ee}*{box-sizing:border-box}
+body{margin:0;color:var(--ink);background:var(--bg);font-family:Inter,ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:14px}
+button,input,select{font:inherit}button{cursor:pointer}button:disabled{opacity:.5;cursor:not-allowed}
+header{background:#fff;border-bottom:1px solid var(--line);padding:17px max(22px,calc((100vw - 1280px)/2));display:flex;align-items:center;justify-content:space-between;gap:18px}
+.brand{display:flex;align-items:center;gap:12px}.logo{display:grid;place-items:center;width:39px;height:39px;border-radius:11px;background:var(--accent);color:#fff;font-weight:900;font-size:23px}
+.brand strong{font-weight:850;font-size:19px;letter-spacing:-.6px}.brand small{display:block;color:var(--muted);font-size:11px;margin-top:2px}
+header .right{font-size:12px;color:#585954;background:#f3f1ed;border:1px solid var(--line);border-radius:20px;padding:7px 12px}
+main{max-width:1280px;padding:30px 22px 70px;margin:auto}
+.heading{display:flex;align-items:end;justify-content:space-between;gap:20px;margin-bottom:24px}
+h1{font-size:32px;letter-spacing:-1.25px;line-height:1.08;margin:0 0 10px;font-weight:850}
+.lead{color:#6b6a65;max-width:660px;margin:0;line-height:1.5}
+.eyebrow{text-transform:uppercase;color:var(--accent);font-size:11px;letter-spacing:2px;font-weight:800;margin-bottom:9px}
+.layout{display:grid;grid-template-columns:minmax(350px,460px) minmax(380px,1fr);align-items:start;gap:22px}
+.panel{background:var(--paper);border:1px solid var(--line);border-radius:16px;padding:24px}
+.panel h2{font-size:16px;letter-spacing:-.3px;margin:0 0 20px}
+.section{border-top:1px solid var(--line);padding-top:21px;margin-top:23px}.section:first-of-type{border:0;margin-top:0;padding-top:0}
+.label{display:flex;align-items:center;justify-content:space-between;font-size:12px;color:var(--muted);font-weight:700;margin:0 0 10px}
+.upload{display:flex;align-items:center;gap:12px;border:1px dashed #c9bcb6;padding:18px;border-radius:11px;background:#fffafa;cursor:pointer;text-align:left}
+.upload svg{flex:none;color:var(--accent)}.upload strong{display:block;font-size:14px}.upload small{color:var(--muted);font-size:12px;display:block;margin-top:4px}
+#file{position:absolute;width:1px;height:1px;opacity:0}
+.actions-inline{display:flex;gap:10px;align-items:center;margin-top:10px}.quiet{color:var(--accent);padding:0;background:none;border:0;font-weight:700;font-size:12px}
+.fieldrow{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+select,input[type=number]{width:100%;padding:11px 12px;border:1px solid var(--line);background:#fff;border-radius:8px;outline:none}
+select:focus,input:focus{outline:2px solid #f4b6b6;outline-offset:1px}
+input[type=range]{width:100%;accent-color:var(--accent)}
+.palette{display:flex;flex-direction:column;gap:8px}
+.pcolor{display:grid;grid-template-columns:42px 1fr auto;align-items:center;gap:11px;background:#fcfbfa;border:1px solid var(--line);padding:9px 10px;border-radius:9px}
+.pcolor input[type=color]{width:40px;height:36px;background:none;border:0;padding:0;cursor:pointer}
+.pcolor strong{display:block;font-size:13px}.pcolor small{color:var(--muted);font-size:11px}
+.pcolor label{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--muted)}.pcolor input[type=radio]{accent-color:var(--accent)}
+.primary{padding:14px 17px;display:inline-flex;gap:9px;align-items:center;justify-content:center;background:var(--accent);color:white;border:1px solid var(--accent);border-radius:10px;font-weight:800;width:100%;margin-top:20px}
+.primary:hover:not(:disabled){background:#bd414d}
+.secondary{padding:12px 14px;border:1px solid var(--line);background:white;color:var(--ink);border-radius:9px;font-weight:700}
+.downloads{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:11px}
+.caption{font-size:11px;color:var(--muted);line-height:1.5;margin-top:13px}
+#message{background:#f6f5f2;padding:13px 14px;margin-top:13px;border-radius:9px;color:#5f5f59;min-height:42px;line-height:1.4;font-size:12px}
+#message.error{background:#fff0ed;color:#a33039}
+.previewpanel{position:sticky;top:18px}
+.previewbar{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:16px}
+.pill{border:1px solid #e5dfd8;background:#f8f6f2;border-radius:20px;font-size:11px;padding:6px 10px;font-weight:800}
+.coverstage{min-height:590px;background:#f6f4f0;border:1px solid var(--line);border-radius:12px;display:flex;justify-content:center;align-items:center;padding:26px;position:relative;overflow:hidden}
+#preview{height:min(66vh,610px);width:auto;max-width:100%;object-fit:contain;image-rendering:auto;filter:drop-shadow(4px 5px 0 #e3dbd2);border-radius:3px}
+.placeholder{position:absolute;background:#f6f4f0;color:#817b72;padding:15px;text-align:center;font-size:12px;pointer-events:none}
+.specs{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:14px}
+.spec{padding:12px;background:#faf9f7;border:1px solid var(--line);border-radius:9px}.spec strong{display:block;font-size:15px;margin-bottom:4px}.spec small{font-size:10px;color:var(--muted)}
+.note{margin-top:16px;padding:14px;border:1px solid #f0ddd5;background:#fff8f3;border-radius:10px;font-size:12px;line-height:1.55;color:#6b554e}
+footer{padding:16px 0;color:var(--muted);font-size:11px;text-align:center}
+@media(max-width:900px){.layout{grid-template-columns:1fr}.previewpanel{position:static}.coverstage{min-height:470px}h1{font-size:27px}main{padding-top:22px}}
+@media(max-width:480px){.heading{display:block}.layout{gap:16px}.panel{padding:18px}.downloads{grid-template-columns:1fr}.specs{grid-template-columns:1fr 1fr}.coverstage{min-height:430px}#preview{height:420px}}
+</style>
+</head>
+<body>
+<header><div class="brand"><div class="logo">C</div><div><strong>Cuadernitos</strong><small>Mi taller personal de tapas 3D</small></div></div><div class="right">Web experimental · v0.1</div></header>
+<main>
+<section class="heading"><div><div class="eyebrow">Diseñá · Probá · Imprimí</div><h1>Tu imagen, una tapa 3D.</h1><p class="lead">Convertí ilustraciones en una tapa A5 con relieves por color, ranuras tipo hongo y archivos preparados para probar en tu Bambu A1 con AMS Lite.</p></div></section>
+<div class="layout">
+<section class="panel">
+<h2>01 / Prepará tu diseño</h2>
+<div class="section">
+<div class="label"><span>Imagen de entrada</span><span>PNG / JPG</span></div>
+<label class="upload" for="file"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 16V3M7 8l5-5 5 5M3 16v3a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-3"/></svg><span><strong>Elegir imagen</strong><small id="filename">Procesamiento local en tu navegador</small></span></label>
+<input id="file" type="file" accept="image/png,image/jpeg,image/webp">
+<div class="actions-inline"><button class="quiet" id="demo" type="button">Usar ilustración de ejemplo</button></div>
+</div>
+<div class="section">
+<div class="fieldrow">
+<div><label class="label" for="numcolors">Colores de filamento</label><select id="numcolors"><option value="2">2 colores</option><option value="3">3 colores</option><option value="4" selected>4 colores (AMS Lite)</option></select></div>
+<div><label class="label" for="precision">Definición geométrica</label><select id="precision"><option value="0.5" selected>0,5 mm · recomendada</option><option value="0.25">0,25 mm · detallada</option></select></div>
+</div>
+<p class="caption">Las imágenes de colores planos funcionan mejor. Reducimos la paleta automáticamente; revisá los colores antes de exportar.</p>
+</div>
+<div class="section">
+<div class="label"><span>Paleta y color de base</span><span id="countlabel">4 colores</span></div><div class="palette" id="palette"></div>
+</div>
+<div class="section"><div class="fieldrow">
+<div><label class="label" for="baseheight">Base (mm)</label><select id="baseheight"><option value="1" selected>1,0 mm · referencia</option><option value="1.2">1,2 mm</option><option value="1.6">1,6 mm</option><option value="2">2,0 mm</option></select></div>
+<div><label class="label" for="relief">Relieve adicional</label><select id="relief"><option value="0.2">0,2 mm</option><option value="0.4" selected>0,4 mm</option><option value="0.6">0,6 mm</option><option value="0.8">0,8 mm</option></select></div></div>
+<p class="caption">A5 · 155 × 216 mm · 8 ranuras abiertas con garganta de 3,4 mm y cavidad semicircular. Tapa delantera solamente.</p></div>
+<button type="button" class="primary" id="generate">Generar archivos STL + 3MF</button>
+<div id="message" role="status" aria-live="polite">Elegí una imagen o usá el ejemplo para comenzar.</div>
+<div class="downloads"><button class="secondary" type="button" id="download3mf" disabled>Descargar 3MF</button><button class="secondary" type="button" id="downloadstls" disabled>Descargar STL (.zip)</button></div>
+<p class="caption">No se suben imágenes a un servidor. El archivo 3MF incluye partes y extrusores lógicos, pero debe verificarse en Bambu Studio antes de imprimir.</p>
+</section>
+<section class="panel previewpanel">
+<div class="previewbar"><div><h2 style="margin:0 0 4px">02 / Vista de la tapa</h2><div class="caption" style="margin:0">Ilustración simplificada con las ranuras reales marcadas.</div></div><span class="pill">A5 · discos</span></div>
+<div class="coverstage"><canvas id="preview" width="310" height="432" aria-label="Vista previa de la tapa"></canvas><div id="placeholder" class="placeholder" hidden>Elegí una imagen para comenzar</div></div>
+<div class="specs"><div class="spec"><strong>155 × 216</strong><small>Medida en mm</small></div><div class="spec"><strong>8</strong><small>Ranuras tipo hongo</small></div><div class="spec"><strong>4</strong><small>Colores máximos</small></div></div>
+<div class="note"><strong>Antes de imprimir:</strong> abrí el 3MF en Bambu Studio, comprobá las cuatro partes en “Objetos”, asigná los colores a tu AMS Lite si hace falta y revisá la vista laminada. Recomendamos imprimir primero un pequeño test de encastre.</div>
+</section>
+</div>
+<footer>Cuadernitos · Herramienta personal en desarrollo · Sin almacenamiento de imágenes</footer>
+</main>
+<script src="app.js" defer></script>
+</body>
+</html>
