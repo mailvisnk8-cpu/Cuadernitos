@@ -4,40 +4,67 @@
 /*
  * BASE MAESTRA: ¡NO se rasteriza ni se reconstruye!
  * Se leen los triángulos originales del STL exacto proporcionado por el usuario.
- * Por privacidad se guarda localmente en IndexedDB después de seleccionarlo UNA vez.
+ * La base original forma parte del sitio y se carga automáticamente, sin archivo del usuario.
  * SHA256 base_rosa(1).stl (original): d0c98f68...
  */
 const ORIGINAL_BASE_SHA='d0c98f68e73411b20b275383263ea7c56c8e766b9c61ab5152ef7dc79e65733e';
 let masterBase=null;
 let topMaskCache=new Map();
 function hexDigest(buf){return crypto.subtle.digest('SHA-256',buf).then(x=>Array.from(new Uint8Array(x),b=>b.toString(16).padStart(2,'0')).join(''));}
-function openLocalDb(){return new Promise((resolve,reject)=>{
- if(!('indexedDB' in window))return reject(new Error('IndexedDB no disponible'));
- const r=indexedDB.open('cuadernitos-master-base',1);
- r.onupgradeneeded=()=>{if(!r.result.objectStoreNames.contains('models'))r.result.createObjectStore('models');};
- r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);
-});}
-async function saveLocalBase(buffer){
- const db=await openLocalDb();
- return new Promise((resolve,reject)=>{
- const tx=db.transaction('models','readwrite');
- tx.objectStore('models').put(buffer,'base_rosa_original');
- tx.oncomplete=()=>{db.close();resolve();};
- tx.onerror=()=>{db.close();reject(tx.error);};
- });}
-async function restoreLocalBase(){
- let db;
+
+/*
+ * La base original ya está empaquetada en assets/base_rosa_exact.b64.
+ * Es una serialización SIN pérdida: vértices float32, normales originales,
+ * índices delta y atributos de triángulos, comprimidos con gzip.
+ * Se recuperan los bytes exactos del STL y se verifica el SHA-256.
+ */
+async function autoLoadMasterBase(){
+ setBaseStatus('Cargando automáticamente tu base maestra…',false);
  try{
- db=await openLocalDb();
- let raw=await new Promise((resolve,reject)=>{
-  const tx=db.transaction('models','readonly');
-  const req=tx.objectStore('models').get('base_rosa_original');
-  req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);
- });
- db.close();db=null;
- if(raw)await loadMasterBase(raw,false);
- else setBaseStatus('Todavía falta cargar el STL original una sola vez.',false);
- }catch(e){if(db)db.close();setBaseStatus('Elegí el STL original para empezar.',false);}
+  if(!('DecompressionStream' in window))throw Error('Este navegador no puede descomprimir la base automáticamente; abrí la web en Chrome actualizado.');
+  const response=await fetch('assets/base_rosa_exact.b64',{cache:'force-cache'});
+  if(!response.ok)throw Error('No se encontró la base original alojada en la web (HTTP '+response.status+').');
+  const base64=(await response.text()).replace(/\s+/g,'');
+  const binary=atob(base64);
+  const compressed=new Uint8Array(binary.length);
+  for(let i=0;i<binary.length;i++)compressed[i]=binary.charCodeAt(i);
+  const stream=new Blob([compressed]).stream().pipeThrough(new DecompressionStream('gzip'));
+  const packed=await new Response(stream).arrayBuffer();
+  const view=new DataView(packed);
+  if(view.byteLength<94||view.getUint8(0)!==66||view.getUint8(1)!==83||view.getUint8(2)!==76||view.getUint8(3)!==49)
+   throw Error('Formato de base inválido.');
+  const nverts=view.getUint32(4,true),ntri=view.getUint32(8,true),nnorm=view.getUint16(12,true);
+  if(nverts!==6530||ntri!==13056||nnorm!==773)throw Error('Datos de la base incompletos.');
+  let pos=14;
+  const header=new Uint8Array(packed,pos,80);pos+=80;
+  const verts=new Uint8Array(packed,pos,nverts*12);pos+=nverts*12;
+  const indices=new Uint16Array(ntri*3);
+  let prev=0;
+  for(let i=0;i<indices.length;i++){prev+=view.getInt16(pos,true);pos+=2;indices[i]=prev;}
+  const normals=new Uint8Array(packed,pos,nnorm*12);pos+=nnorm*12;
+  const normalIndices=new Uint16Array(ntri);
+  for(let i=0;i<ntri;i++){normalIndices[i]=view.getUint16(pos,true);pos+=2;}
+  const attributes=new Uint8Array(packed,pos,ntri*2);pos+=ntri*2;
+  if(pos!==packed.byteLength)throw Error('La base contiene datos inesperados.');
+  const raw=new ArrayBuffer(84+ntri*50),dst=new Uint8Array(raw),out=new DataView(raw);
+  dst.set(header,0);out.setUint32(80,ntri,true);
+  for(let i=0;i<ntri;i++){
+   const off=84+i*50;
+   dst.set(normals.subarray(normalIndices[i]*12,normalIndices[i]*12+12),off);
+   for(let j=0;j<3;j++){
+    const idx=indices[3*i+j];
+    if(idx>=nverts)throw Error('Índice de la base fuera de rango.');
+    dst.set(verts.subarray(idx*12,idx*12+12),off+12+j*12);
+   }
+   dst.set(attributes.subarray(2*i,2*i+2),off+48);
+  }
+  await loadMasterBase(raw,false);
+  setBaseStatus('✓ Base original cargada automáticamente, con 8 ranuras tipo hongo',true);
+ }catch(e){
+  console.error('No se pudo cargar la base maestra',e);
+  setBaseStatus('Error al cargar la base maestra: '+e.message,false);
+  say('Error de carga automática. Actualizá con Ctrl + F5. '+e.message,true);
+ }
 }
 function decodeOriginalStl(buf){
  const view=new DataView(buf);
@@ -54,18 +81,16 @@ function decodeOriginalStl(buf){
 function setBaseStatus(text,ok){
  const box=$('#base-status');if(box){box.textContent=text;box.className=ok?'base-status good':'base-status';}
 }
-async function loadMasterBase(buffer,save=true){
+async function loadMasterBase(buffer){
  const raw=buffer instanceof ArrayBuffer?buffer:buffer.buffer.slice(buffer.byteOffset,buffer.byteOffset+buffer.byteLength);
  const sha=await hexDigest(raw);
- if(sha!==ORIGINAL_BASE_SHA)throw Error('El archivo no coincide con base_rosa(1).stl. Elegí la misma base original que me pasaste.');
+ if(sha!==ORIGINAL_BASE_SHA)throw Error('La base incorporada no coincide con el STL original.');
  const tris=decodeOriginalStl(raw);
  masterBase={bytes:new Uint8Array(raw.slice(0)),tris};
  topMaskCache.clear();
- let saved=true;
- if(save){try{await saveLocalBase(raw)}catch(e){saved=false;console.warn('No se pudo guardar en IndexedDB',e)}}
- setBaseStatus(saved?'✓ Base original verificada · 13.056 triángulos · guardada en este navegador':'✓ Base verificada · la memoria local está bloqueada, volvé a cargarla al actualizar.',true);
+ setBaseStatus('✓ Base original verificada · 13.056 triángulos',true);
  invalidate();drawPreview();
- say('Base exacta cargada. El contorno, las 8 ranuras y los detalles inferiores permanecen intactos.');
+ say('Base original cargada automáticamente. Elegí tu foto y generá la tapa.');
 }
 function topSurfaceMask(width,height){
  if(!masterBase)return null;
@@ -316,7 +341,7 @@ function project3mf(parts){
 }
 function save(blob,name){let a=document.createElement('a'),url=URL.createObjectURL(blob);a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),10000);}
 async function generate(){
- if(!masterBase){say('Primero cargá base_rosa(1).stl: se guarda en este navegador y no tendrás que volver a cargarlo.',true);return;}
+ if(!masterBase){say('La base maestra todavía no cargó. Actualizá la página si aparece un error de carga.',true);return;}
  if(!source){say('Primero elegí una imagen.',true);return;}
  const btn=$('#generate');btn.disabled=true;say('Montando los colores sobre la base STL original…');
  try{
@@ -338,14 +363,7 @@ async function generate(){
  finally{btn.disabled=false;}
 }
 
-$('#basefile').addEventListener('change',async e=>{
- const f=e.target.files[0];if(!f)return;
- setBaseStatus('Verificando el STL original…',false);
- try{await loadMasterBase(await f.arrayBuffer(),true);}
- catch(error){setBaseStatus('No se pudo cargar esta base.',false);say(error.message,true);}
- e.target.value='';
-});
-restoreLocalBase();
+autoLoadMasterBase();
 $('#file').addEventListener('change',e=>loadFile(e.target.files[0]));
 $('#demo').onclick=example;
 $('#numcolors').onchange=()=>{invalidate();quantize(Number($('#numcolors').value));};
