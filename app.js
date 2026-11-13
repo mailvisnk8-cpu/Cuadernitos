@@ -99,15 +99,21 @@ function topSurfaceMask(width,height){
  const c=document.createElement('canvas');c.width=width;c.height=height;
  const ctx=c.getContext('2d',{willReadFrequently:true});
  ctx.fillStyle='white';
- let triangles=masterBase.tris;
+ // IMPORTANTÍSIMO: todos los triángulos superiores forman UNA SOLA
+ // región Path2D. Hacer ctx.fill() por triángulo provoca costuras
+ // antialiasing que aparecen como rayas radiales en la vista previa.
+ const surface=new Path2D();
+ const triangles=masterBase.tris;
  for(let k=0;k<triangles.length;k+=9){
-  if(Math.abs(triangles[k+2]-1)>1e-5||Math.abs(triangles[k+5]-1)>1e-5||Math.abs(triangles[k+8]-1)>1e-5)continue;
-  ctx.beginPath();
-  ctx.moveTo(triangles[k]*width/W,triangles[k+1]*height/H);
-  ctx.lineTo(triangles[k+3]*width/W,triangles[k+4]*height/H);
-  ctx.lineTo(triangles[k+6]*width/W,triangles[k+7]*height/H);
-  ctx.closePath();ctx.fill();
+  if(Math.abs(triangles[k+2]-1)>1e-5||
+     Math.abs(triangles[k+5]-1)>1e-5||
+     Math.abs(triangles[k+8]-1)>1e-5)continue;
+  surface.moveTo(triangles[k]*width/W,triangles[k+1]*height/H);
+  surface.lineTo(triangles[k+3]*width/W,triangles[k+4]*height/H);
+  surface.lineTo(triangles[k+6]*width/W,triangles[k+7]*height/H);
+  surface.closePath();
  }
+ ctx.fill(surface,'nonzero');
  const rgba=ctx.getImageData(0,0,width,height).data;
  const inside=new Uint8Array(width*height);
  for(let i=0;i<inside.length;i++)inside[i]=rgba[4*i+3]>=230?1:0;
